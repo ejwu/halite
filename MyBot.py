@@ -15,19 +15,30 @@ import hlt
 # Then let's import the logging module so we can print out information
 import logging
 
+from collections import Counter
+
 # GAME START
 # Here we define the bot's name as Settler and initialize the game, including communication with the Halite engine.
-game = hlt.Game("Settler")
+game = hlt.Game("Settler 3")
 # Then we print our start message to the logs
 logging.info("Starting my Settler bot!")
 
+turn_number = 0
+
 while True:
+    logging.info("Turn number: {}".format(turn_number))
+    turn_number += 1
     # TURN START
     # Update the map for the new turn and get the latest version
     game_map = game.update_map()
 
     # Here we define the set of commands to be sent to the Halite engine at the end of the turn
     command_queue = []
+
+    # Log counts of all ships and statuses
+    my_ships = game_map.get_me().all_ships()
+    logging.info("{} ships, {}".format(len(my_ships), Counter([ship.docking_status.name for ship in my_ships])))
+
     # For every ship that I control
     for ship in game_map.get_me().all_ships():
         # If the ship is docked
@@ -36,7 +47,8 @@ while True:
             continue
 
         # For each planet in the game (only non-destroyed planets are included)
-        for planet in game_map.all_planets():
+        # Try closer planets first
+        for planet in sorted(game_map.all_planets(), key=ship.dist_to):
             # If the planet is owned
             if planet.is_owned():
                 # Skip this planet
@@ -71,3 +83,4 @@ while True:
     game.send_command_queue(command_queue)
     # TURN END
 # GAME END
+

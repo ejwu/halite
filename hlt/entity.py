@@ -39,6 +39,10 @@ class Entity:
         """
         return math.sqrt((target.x - self.x) ** 2 + (target.y - self.y) ** 2)
 
+    # Only because I'm too lazy to type calculate_distance_between
+    def dist_to(self, target):
+        return self.calculate_distance_between(target)
+
     def calculate_angle_between(self, target):
         """
         Calculates the angle between this object and the target in degrees.
