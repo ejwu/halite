@@ -53,7 +53,7 @@ def order_unused_ships(ships, game_map, command_queue):
 
 # GAME START
 # Here we define the bot's name as Settler and initialize the game, including communication with the Halite engine.
-bot_name = "Lazy Attacker 1"
+bot_name = "Lazy Attacker 2"
 game = hlt.Game(bot_name)
 # Then we print our start message to the logs
 logging.info("Starting my {} bot!".format(bot_name))
@@ -111,7 +111,7 @@ while True:
                     ship.closest_point_to(planet),
                     game_map,
                     speed=int(hlt.constants.MAX_SPEED),
-                    ignore_ships=True)
+                    ignore_ships=False)
                 # If the move is possible, add it to the command_queue (if there are too many obstacles on the way
                 # or we are trapped (or we reached our destination!), navigate_command will return null;
                 # don't fret though, we can run the command again the next turn)
