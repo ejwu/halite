@@ -18,12 +18,37 @@ import logging
 from collections import Counter
 from collections import Set
 
-def find_winning_player():
-    z = True
+def find_winning_player(game_map):
+    max_ships = 0
+    winning_player = None
+    for player in game_map.all_enemy_players():
+        if len(player.all_ships()) > max_ships:
+            max_ships = len(player.all_ships())
+            winning_player = player
+
+    return winning_player
+
+def get_ships_for_player(player, status):
+    return [ship for ship in player.all_ships() if ship.docking_status == status]
 
 def order_unused_ships(ships, game_map, command_queue):
-    z = True
-
+    logging.info("{} ships without orders".format(len(ships)))
+    # This is lame and there must be a better way to get a reference to DockingStatus
+    ship_ref = game_map.get_me().all_ships()[0]
+    target_player = find_winning_player(game_map)
+    target_ships = get_ships_for_player(target_player, ship_ref.DockingStatus.DOCKED)
+    if target_ships:
+        for ship in ships:
+            # Super stupid, just send everyone to attack first ship
+            navigate_command = ship.navigate(
+                ship.closest_point_to(target_ships[0]),
+                game_map,
+                speed=int(hlt.constants.MAX_SPEED),
+                ignore_ships=True)
+            if navigate_command:
+                command_queue.append(navigate_command)
+            
+    
 
 
 # GAME START
@@ -49,11 +74,15 @@ while True:
     my_ships = game_map.get_me().all_ships()
     logging.info("{} ships, {}".format(len(my_ships), Counter([ship.docking_status.name for ship in my_ships])))
 
+    ships_without_orders = set()
+    
     # For every ship that I control
     for ship in game_map.get_me().all_ships():
+        has_order = False
         # If the ship is docked
         if ship.docking_status != ship.DockingStatus.UNDOCKED:
             # Skip this ship
+            has_order = True
             continue
 
         # For each planet in the game (only non-destroyed planets are included)
@@ -68,6 +97,7 @@ while True:
             if ship.can_dock(planet):
                 # We add the command by appending it to the command_queue
                 command_queue.append(ship.dock(planet))
+                has_order = True
             else:
                 # If we can't dock, we move towards the closest empty point near this planet (by using closest_point_to)
                 # with constant speed. Don't worry about pathfinding for now, as the command will do it for you.
@@ -87,7 +117,15 @@ while True:
                 # don't fret though, we can run the command again the next turn)
                 if navigate_command:
                     command_queue.append(navigate_command)
+                    has_order = True
             break
+        if not has_order:
+            ships_without_orders.add(ship)
+
+    try:
+        order_unused_ships(ships_without_orders, game_map, command_queue)
+    except Exception as e:
+        logging.info(e)
 
     # Send our set of commands to the Halite engine for this turn
     game.send_command_queue(command_queue)
