@@ -1,5 +1,5 @@
 from . import collision, entity
-
+import copy
 
 class Map:
     """
@@ -44,6 +44,15 @@ class Map:
         """
         return list(self._players.values())
 
+    def all_enemy_players(self):
+        """
+        :return: List of all other players
+        :rtype: list[Player]
+        """
+        players = copy.copy(self.all_players())
+        players.remove(self.get_me())
+        return players
+
     def get_planet(self, planet_id):
         """
         :param int planet_id:
@@ -59,6 +68,16 @@ class Map:
         """
         return list(self._planets.values())
 
+    def all_planets_owned():
+        """
+        :return True if all planets are owned by someone
+        :rtype: bool
+        """
+        for planet in self.all_planets():
+            if not planet.is_owned():
+                return False;
+        return True;
+    
     def nearby_entities_by_distance(self, entity):
         """
         :param entity: The source entity to find distances from
