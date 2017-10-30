@@ -70,6 +70,22 @@ class Entity:
 
         return Position(x, y)
 
+    def get_nearest(self, entities):
+        """
+        Get the nearest entity to this.
+        :param list[Entity] entities: The candidate set of entities
+        :return: The nearest entity
+        :rtype: Entity
+        """
+        min_dist = 9999999999
+        nearest_entity = None
+        for entity in entities:
+            distance = self.dist_to(entity)
+            if distance < min_dist:
+                min_dist = distance
+                nearest_entity = entity
+        return nearest_entity
+    
     @abc.abstractmethod
     def _link(self, players, planets):
         pass
