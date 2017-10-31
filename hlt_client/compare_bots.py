@@ -4,7 +4,7 @@ import re
 _WINNING_RANK_STRING = "rank #1"
 _SPACE_DELIMITER = ' '
 _BOT_ID_POSITION = 1
-
+_COMMA_DELIMITER = ','
 
 def _determine_winner(game_result):
     """
@@ -13,7 +13,7 @@ def _determine_winner(game_result):
     :return:
     """
     return next(line for line in game_result.splitlines()
-                if re.compile(_WINNING_RANK_STRING).search(line)).split(_SPACE_DELIMITER)[_BOT_ID_POSITION]
+                if re.compile(_WINNING_RANK_STRING).search(line)).split(_COMMA_DELIMITER)[_BOT_ID_POSITION]
 
 
 def _play_game(binary, map_width, map_height, bot_commands):
@@ -28,7 +28,6 @@ def _play_game(binary, map_width, map_height, bot_commands):
     game_run_command = '\"{}\" -d "{} {}" -t'.format(binary, map_width, map_height)
     for bot_command in bot_commands:
         game_run_command += " \"{}\"".format(bot_command)
-    print(game_run_command)
     return subprocess.check_output(game_run_command, shell=True).decode()
 
 
@@ -49,6 +48,7 @@ def play_games(binary, map_width, map_height, bot_commands, number_of_runs):
     for current_run in range(0, number_of_runs):
         try:
             match_output = _play_game(binary, map_width, map_height, bot_commands)
+            print(match_output)
         except Exception as e:
             print(e.output)
         winner = _determine_winner(match_output)

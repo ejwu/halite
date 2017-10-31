@@ -1,0 +1,14 @@
+*.log
+*.zip
+*~
+*#
+run_game.bat
+run_game.sh
+run_vs_old.bat
+MyBotOld.py
+replay*.hlt
+halite.exe
+hlt/__*
+hlt_client/__*
+replays/
+.gitignore
