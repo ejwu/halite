@@ -1,23 +1,10 @@
-"""
-Welcome to your first Halite-II bot!
-
-This bot's name is Settler. It's purpose is simple (don't expect it to win complex games :) ):
-1. Initialize game
-2. If a ship is not docked and there are unowned planets
-2.a. Try to Dock in the planet if close enough
-2.b If not, go towards the planet
-
-Note: Please do not place print statements here as they are used to communicate with the Halite engine. If you need
-to log anything use the logging module.
-"""
 import copy
-# Let's start by importing the Halite Starter Kit so we can interface with the Halite engine
 import hlt
-# Then let's import the logging module so we can print out information
 import logging
 from collections import Counter
 from collections import Set
 
+# Find player with most ships
 def find_winning_player(game_map):
     max_ships = 0
     winning_player = None
@@ -44,7 +31,7 @@ def order_unused_ships(ships, game_map, command_queue):
                 ship.closest_point_to(ship.get_nearest(target_ships)),
                 game_map,
                 speed=int(hlt.constants.MAX_SPEED),
-                ignore_ships=True)
+                ignore_ships=False)
             if navigate_command:
                 command_queue.append(navigate_command)
             
@@ -52,8 +39,12 @@ def order_unused_ships(ships, game_map, command_queue):
 
 
 # GAME START
-# Here we define the bot's name as Settler and initialize the game, including communication with the Halite engine.
-bot_name = "Lazy Attacker 4"
+# Lazy Attacker 1 - Once all planets are claimed, send ships to attack something
+# Lazy Attacker 3 - attack nearest docked ship
+# Lazy Attacker 4 - attack nearest ship
+# Lazy Attacker 5 - don't ignore ships when navigating
+
+bot_name = "Lazy Attacker 5"
 game = hlt.Game(bot_name)
 # Then we print our start message to the logs
 logging.info("Starting my {} bot!".format(bot_name))
