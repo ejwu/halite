@@ -29,22 +29,19 @@ def order_unused_ships(ships, game_map, command_queue):
             # Everyone attacks their nearest ship
             navigate_command = ship.navigate(
                 ship.closest_point_to(ship.get_nearest(target_ships)),
-                game_map,
-                speed=int(hlt.constants.MAX_SPEED),
-                ignore_ships=False)
+                game_map)
             if navigate_command:
                 command_queue.append(navigate_command)
             
     
 
 
-# GAME START
 # Lazy Attacker 1 - Once all planets are claimed, send ships to attack something
 # Lazy Attacker 3 - attack nearest docked ship
 # Lazy Attacker 4 - attack nearest ship
 # Lazy Attacker 5 - don't ignore ships when navigating
-
-bot_name = "Lazy Attacker 5"
+# LA 6 - Be willing to dock multiple ships on a planet
+bot_name = "LA 6"
 game = hlt.Game(bot_name)
 # Then we print our start message to the logs
 logging.info("Starting my {} bot!".format(bot_name))
@@ -79,8 +76,8 @@ while True:
         # For each planet in the game (only non-destroyed planets are included)
         # Try closer planets first
         for planet in sorted(game_map.all_planets(), key=ship.dist_to):
-            # If the planet is owned
-            if planet.is_owned():
+            # If the planet is owned by someone else or is full
+            if planet.is_owned() and not (planet.owner == game_map.get_me() and not planet.is_full()):
                 # Skip this planet
                 continue
 
@@ -100,9 +97,7 @@ while True:
                 # wish to turn that option off.
                 navigate_command = ship.navigate(
                     ship.closest_point_to(planet),
-                    game_map,
-                    speed=int(hlt.constants.MAX_SPEED),
-                    ignore_ships=False)
+                    game_map)
                 # If the move is possible, add it to the command_queue (if there are too many obstacles on the way
                 # or we are trapped (or we reached our destination!), navigate_command will return null;
                 # don't fret though, we can run the command again the next turn)

@@ -12,3 +12,4 @@ hlt/__*
 hlt_client/__*
 replays/
 .gitignore
+*.pyc
