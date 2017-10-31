@@ -5,7 +5,7 @@ import time
 from collections import Counter
 from collections import Set
 
-_TIME_THRESHOLD = 1.8
+_TIME_THRESHOLD = 1.5
 
 # Find player with most ships
 def find_winning_player(game_map):
@@ -29,6 +29,11 @@ def order_unused_ships(ships, game_map, command_queue, start_time):
     target_ships = target_player.all_ships()
     if target_ships:
         for ship in ships:
+            if time.time() > start_time + _TIME_THRESHOLD:
+                logging.info("Out of time, sent commands for {} of {} ships".format(
+                    len(command_queue),
+                    len(game_map.get_me().all_ships())))
+                return
             # Everyone attacks their nearest ship
             navigate_command = ship.navigate(
                 ship.closest_point_to(ship.get_nearest(target_ships)),
@@ -37,11 +42,6 @@ def order_unused_ships(ships, game_map, command_queue, start_time):
                 angular_step=2)
             if navigate_command:
                 command_queue.append(navigate_command)
-            if time.time() > start_time + _TIME_THRESHOLD:
-                logging.info("Out of time, sent commands for {} of {} ships".format(
-                    len(command_queue),
-                    len(game_map.get_me().all_ships())))
-                return
             
     
 
@@ -80,6 +80,11 @@ while True:
     
     # For every ship that I control
     for ship in game_map.get_me().all_ships():
+        if time.time() > start_time + _TIME_THRESHOLD:
+            logging.info("Out of time, sent commands for {} of {} ships".format(
+                len(command_queue),
+                len(game_map.get_me().all_ships())))
+            break
         has_order = False
         # If the ship is docked
         if ship.docking_status != ship.DockingStatus.UNDOCKED:
