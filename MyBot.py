@@ -36,10 +36,10 @@ def order_unused_ships(ships, game_map, command_queue):
     # This is lame and there must be a better way to get a reference to DockingStatus
     ship_ref = game_map.get_me().all_ships()[0]
     target_player = find_winning_player(game_map)
-    target_ships = get_ships_for_player(target_player, ship_ref.DockingStatus.DOCKED)
+    target_ships = target_player.all_ships()
     if target_ships:
         for ship in ships:
-            # Everyone attacks their nearest docked ship
+            # Everyone attacks their nearest ship
             navigate_command = ship.navigate(
                 ship.closest_point_to(ship.get_nearest(target_ships)),
                 game_map,
@@ -53,7 +53,7 @@ def order_unused_ships(ships, game_map, command_queue):
 
 # GAME START
 # Here we define the bot's name as Settler and initialize the game, including communication with the Halite engine.
-bot_name = "Lazy Attacker 3"
+bot_name = "Lazy Attacker 4"
 game = hlt.Game(bot_name)
 # Then we print our start message to the logs
 logging.info("Starting my {} bot!".format(bot_name))
