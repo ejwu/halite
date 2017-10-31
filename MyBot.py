@@ -1,8 +1,11 @@
 import copy
 import hlt
 import logging
+import time
 from collections import Counter
 from collections import Set
+
+_TIME_THRESHOLD = 1.8
 
 # Find player with most ships
 def find_winning_player(game_map):
@@ -18,7 +21,7 @@ def find_winning_player(game_map):
 def get_ships_for_player(player, status):
     return [ship for ship in player.all_ships() if ship.docking_status == status]
 
-def order_unused_ships(ships, game_map, command_queue):
+def order_unused_ships(ships, game_map, command_queue, start_time):
     logging.info("{} ships without orders".format(len(ships)))
     # This is lame and there must be a better way to get a reference to DockingStatus
     ship_ref = game_map.get_me().all_ships()[0]
@@ -29,9 +32,16 @@ def order_unused_ships(ships, game_map, command_queue):
             # Everyone attacks their nearest ship
             navigate_command = ship.navigate(
                 ship.closest_point_to(ship.get_nearest(target_ships)),
-                game_map)
+                game_map,
+                max_corrections=45,
+                angular_step=2)
             if navigate_command:
                 command_queue.append(navigate_command)
+            if time.time() > start_time + _TIME_THRESHOLD:
+                logging.info("Out of time, sent commands for {} of {} ships".format(
+                    len(command_queue),
+                    len(game_map.get_me().all_ships())))
+                return
             
     
 
@@ -41,7 +51,10 @@ def order_unused_ships(ships, game_map, command_queue):
 # Lazy Attacker 4 - attack nearest ship
 # Lazy Attacker 5 - don't ignore ships when navigating
 # LA 6 - Be willing to dock multiple ships on a planet
-bot_name = "LA 6"
+# Navigator 1 - Cut max_corrections to 45 and angular_step to 2 in an attempt to avoid timeouts.
+#   - Cut off command queue after 1.8 seconds
+
+bot_name = "Navigator 1"
 game = hlt.Game(bot_name)
 # Then we print our start message to the logs
 logging.info("Starting my {} bot!".format(bot_name))
@@ -54,7 +67,8 @@ while True:
     # TURN START
     # Update the map for the new turn and get the latest version
     game_map = game.update_map()
-
+    start_time = time.time()
+    
     # Here we define the set of commands to be sent to the Halite engine at the end of the turn
     command_queue = []
 
@@ -90,14 +104,11 @@ while True:
                 # If we can't dock, we move towards the closest empty point near this planet (by using closest_point_to)
                 # with constant speed. Don't worry about pathfinding for now, as the command will do it for you.
                 # We run this navigate command each turn until we arrive to get the latest move.
-                # Here we move at half our maximum speed to better control the ships
-                # In order to execute faster we also choose to ignore ship collision calculations during navigation.
-                # This will mean that you have a higher probability of crashing into ships, but it also means you will
-                # make move decisions much quicker. As your skill progresses and your moves turn more optimal you may
-                # wish to turn that option off.
                 navigate_command = ship.navigate(
                     ship.closest_point_to(planet),
-                    game_map)
+                    game_map,
+                    max_corrections=45,
+                    angular_step=2)
                 # If the move is possible, add it to the command_queue (if there are too many obstacles on the way
                 # or we are trapped (or we reached our destination!), navigate_command will return null;
                 # don't fret though, we can run the command again the next turn)
@@ -109,7 +120,7 @@ while True:
             ships_without_orders.add(ship)
 
     try:
-        order_unused_ships(ships_without_orders, game_map, command_queue)
+        order_unused_ships(ships_without_orders, game_map, command_queue, start_time)
     except Exception as e:
         logging.info(e)
 
