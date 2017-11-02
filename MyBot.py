@@ -3,6 +3,7 @@ import hlt
 import logging
 import time
 from collections import Counter
+from collections import defaultdict
 from collections import Set
 
 _TIME_THRESHOLD = 1.5
@@ -43,24 +44,34 @@ def order_unused_ships(ships, game_map, command_queue, start_time):
             if navigate_command:
                 command_queue.append(navigate_command)
             
+def remove_destroyed_ships_from_incoming_settlers(planet_map, all_ships):
+    ship_ids = set([ship.id for ship in all_ships])
+    for planet_id, incoming_settlers in planet_map.items():
+        planet_map[planet_id] = incoming_settlers & ship_ids
+
+def remove_unordered_ships_from_incoming_settlers(planet_map, unordered_ships):
+    ship_ids = set([ship.id for ship in unordered_ships])
+    for planet_id, incoming_settlers in planet_map.items():
+        planet_map[planet_id] = incoming_settlers - ship_ids
     
-
-
 # Lazy Attacker 1 - Once all planets are claimed, send ships to attack something
 # Lazy Attacker 3 - attack nearest docked ship
 # Lazy Attacker 4 - attack nearest ship
 # Lazy Attacker 5 - don't ignore ships when navigating
 # LA 6 - Be willing to dock multiple ships on a planet
 # Navigator 1 - Cut max_corrections to 45 and angular_step to 2 in an attempt to avoid timeouts.
-#   - Cut off command queue after 1.8 seconds
+#   - Cut off command queue after 1.5 seconds
+# Settler 5 - Only send enough settlers to each planet to fully colonize it
 
-bot_name = "Navigator 1"
+bot_name = "Settler 5"
 game = hlt.Game(bot_name)
 # Then we print our start message to the logs
 logging.info("Starting my {} bot!".format(bot_name))
 
 turn_number = 0
 
+# Multimap of planet IDs to incoming settler IDs
+incoming_settlers = defaultdict(set)
 while True:
     logging.info("Turn number: {}".format(turn_number))
     turn_number += 1
@@ -68,7 +79,7 @@ while True:
     # Update the map for the new turn and get the latest version
     game_map = game.update_map()
     start_time = time.time()
-    
+
     # Here we define the set of commands to be sent to the Halite engine at the end of the turn
     command_queue = []
 
@@ -76,6 +87,10 @@ while True:
     my_ships = game_map.get_me().all_ships()
     logging.info("{} ships, {}".format(len(my_ships), Counter([ship.docking_status.name for ship in my_ships])))
 
+    # Update settlers map by removing ships that were destroyed last turn
+    remove_destroyed_ships_from_incoming_settlers(incoming_settlers, my_ships)
+    logging.info("Took {} to update incoming settlers".format(time.time() - start_time))
+    
     ships_without_orders = set()
     
     # For every ship that I control
@@ -95,17 +110,38 @@ while True:
         # For each planet in the game (only non-destroyed planets are included)
         # Try closer planets first
         for planet in sorted(game_map.all_planets(), key=ship.dist_to):
+            logging.info("{} for ship {} to planet {}".format(ship.dist_to(planet), ship.id, planet.id))
             # If the planet is owned by someone else or is full
             if planet.is_owned() and not (planet.owner == game_map.get_me() and not planet.is_full()):
+                if planet.is_owned():
+                    logging.info("owned")
+                    if planet.owner == game_map.get_me():
+                        logging.info("by me")
+                        if planet.is_full():
+                            logging.info("is full")
                 # Skip this planet
                 continue
 
+            incoming_settler_count = len(incoming_settlers[planet.id])
+            # Count will be too high if it includes the current ship
+            if ship.id in incoming_settlers[planet.id]:
+                incoming_settler_count -= 1
+            if planet.num_docking_spots <= incoming_settler_count:
+                logging.info("Planet {}(fits {}) already has {} incoming".format(
+                    planet.id, planet.num_docking_spots, incoming_settler_count))
+                # Planet has enough settlers on the way, skip this planet
+                continue
+            
             # If we can dock, let's (try to) dock. If two ships try to dock at once, neither will be able to.
             if ship.can_dock(planet):
                 # We add the command by appending it to the command_queue
                 command_queue.append(ship.dock(planet))
+                incoming_settlers[planet.id].add(ship.id)
+                logging.info("Ship {} settling planet {}".format(ship.id, planet.id))
                 has_order = True
             else:
+                incoming_settlers[planet.id].add(ship.id)
+                logging.info("Ship {} traveling to settle planet {}".format(ship.id, planet.id))
                 # If we can't dock, we move towards the closest empty point near this planet (by using closest_point_to)
                 # with constant speed. Don't worry about pathfinding for now, as the command will do it for you.
                 # We run this navigate command each turn until we arrive to get the latest move.
@@ -120,15 +156,20 @@ while True:
                 if navigate_command:
                     command_queue.append(navigate_command)
                     has_order = True
+                else:
+                    logging.info("navigate failed")
             break
         if not has_order:
             ships_without_orders.add(ship)
 
-    try:
-        order_unused_ships(ships_without_orders, game_map, command_queue, start_time)
-    except Exception as e:
-        logging.info(e)
+    # Ships may have switched from heading to a planet to doing something else
+    # - remove them from the incoming settlers map
+    remove_unordered_ships_from_incoming_settlers(incoming_settlers, ships_without_orders)
 
+    order_unused_ships(ships_without_orders, game_map, command_queue, start_time)
+
+    logging.info(command_queue)
+        
     # Send our set of commands to the Halite engine for this turn
     game.send_command_queue(command_queue)
     # TURN END
