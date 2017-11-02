@@ -8,6 +8,7 @@ run_vs_old.bat
 MyBotOld.py
 replay*.hlt
 halite.exe
+halite
 hlt/__*
 hlt_client/__*
 replays/
