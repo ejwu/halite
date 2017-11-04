@@ -1,5 +1,6 @@
 import copy
 import hlt
+import itertools
 import logging
 import time
 from collections import Counter
@@ -23,17 +24,24 @@ def get_ships_for_player(player, status):
     return [ship for ship in player.all_ships() if ship.docking_status == status]
 
 def order_unused_ships(ships, game_map, command_queue, start_time):
+    order_unused_ships_start_time = time.time()
     logging.info("{} ships without orders".format(len(ships)))
     # This is lame and there must be a better way to get a reference to DockingStatus
     ship_ref = game_map.get_me().all_ships()[0]
-    target_player = find_winning_player(game_map)
-    target_ships = target_player.all_ships()
+
+    target_ships = list()
+    for enemy in game_map.all_enemy_players():
+        target_ships += enemy.all_ships()
+
+        
     if target_ships:
         for ship in ships:
             if time.time() > start_time + _TIME_THRESHOLD:
                 logging.info("Out of time, sent commands for {} of {} ships".format(
                     len(command_queue),
                     len(game_map.get_me().all_ships())))
+                logging.info("Spent {} ordering unused ships".format(
+                    time.time() - order_unused_ships_start_time))
                 return
             # Everyone attacks their nearest ship
             navigate_command = ship.navigate(
@@ -43,6 +51,8 @@ def order_unused_ships(ships, game_map, command_queue, start_time):
                 angular_step=2)
             if navigate_command:
                 command_queue.append(navigate_command)
+    logging.info("Spent {} ordering unused ships".format(
+        time.time() - order_unused_ships_start_time))
             
 def remove_destroyed_ships_from_incoming_settlers(planet_map, all_ships):
     ship_ids = set([ship.id for ship in all_ships])
@@ -62,23 +72,28 @@ def remove_unordered_ships_from_incoming_settlers(planet_map, unordered_ships):
 # Navigator 1 - Cut max_corrections to 45 and angular_step to 2 in an attempt to avoid timeouts.
 #   - Cut off command queue after 1.5 seconds
 # Settler 5 - Only send enough settlers to each planet to fully colonize it
-
-bot_name = "Settler 5"
+# LA 7 - target any nearest ship, not just winning player's
+bot_name = "LA 7"
 game = hlt.Game(bot_name)
-# Then we print our start message to the logs
 logging.info("Starting my {} bot!".format(bot_name))
 
 turn_number = 0
 
+# What the heck, memory is cheap.  Keep a history of the entire game.  Index == turn_number
+game_states = []
+
 # Multimap of planet IDs to incoming settler IDs
 incoming_settlers = defaultdict(set)
+
 while True:
     logging.info("Turn number: {}".format(turn_number))
-    turn_number += 1
     # TURN START
     # Update the map for the new turn and get the latest version
     game_map = game.update_map()
     start_time = time.time()
+
+    # Shallow copy seems good enough
+    game_states.append(copy.copy(game_map))
 
     # Here we define the set of commands to be sent to the Halite engine at the end of the turn
     command_queue = []
@@ -92,6 +107,8 @@ while True:
     logging.info("Took {} to update incoming settlers".format(time.time() - start_time))
     
     ships_without_orders = set()
+
+    settler_start_time = time.time()
     
     # For every ship that I control
     for ship in game_map.get_me().all_ships():
@@ -162,6 +179,8 @@ while True:
         if not has_order:
             ships_without_orders.add(ship)
 
+    logging.info("Spent {} ordering settlers".format(
+        time.time() - settler_start_time))
     # Ships may have switched from heading to a planet to doing something else
     # - remove them from the incoming settlers map
     remove_unordered_ships_from_incoming_settlers(incoming_settlers, ships_without_orders)
@@ -172,5 +191,6 @@ while True:
         
     # Send our set of commands to the Halite engine for this turn
     game.send_command_queue(command_queue)
+    turn_number += 1
     # TURN END
 # GAME END
