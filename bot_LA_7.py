@@ -63,44 +63,7 @@ def remove_unordered_ships_from_incoming_settlers(planet_map, unordered_ships):
     ship_ids = set([ship.id for ship in unordered_ships])
     for planet_id, incoming_settlers in planet_map.items():
         planet_map[planet_id] = incoming_settlers - ship_ids
-
-# Return a map of ship.id -> ship
-def find_attacked_ships(game_states, turn_number):
-    last = {ship.id : ship for ship in game_states[turn_number - 1].get_me().all_ships()}
-    attacked = {}
-    for ship in game_states[turn_number].get_me().all_ships():
-        if ship.id in last and last[ship.id].health != ship.health:
-            attacked[ship.id] = ship
-
-    logging.info("Attacked: {}".format(attacked))
-    return attacked
     
-# Ships that are docked just stay docked
-def stay_docked(ship):
-    if ship.docking_status != ship.DockingStatus.UNDOCKED:
-        return True
-
-# Defend ships under attack that are within this distance (3 turns move away)
-defense_distance_threshold = 21
-
-# If a nearby ship is under attack, go help
-def defend_nearby_ships(ship, ships_under_attack, game_map, command_queue):
-    nearest_ship = ship.get_nearest([ship for ship in ships_under_attack.values() if ship.docking_status == ship.DockingStatus.DOCKED])
-    if nearest_ship and ship.dist_to(nearest_ship) <= defense_distance_threshold:
-        # TODO: precalc and cache this
-        nearest_attacking_enemy = nearest_ship.get_nearest([enemy_ship for enemy_ship in game_map.all_enemy_ships() if enemy_ship.docking_status == ship.DockingStatus.UNDOCKED])
-            
-        navigate_command = ship.navigate(
-            ship.closest_point_to(nearest_attacking_enemy),
-            game_map,
-            max_corrections=45,
-            angular_step=2)
-        if navigate_command:
-            logging.info("Sending {} to defend {} by attacking {}".format(ship.id, nearest_ship.id, nearest_attacking_enemy.id))
-            command_queue.append(navigate_command)
-            return True
-                                    
-        
 # Lazy Attacker 1 - Once all planets are claimed, send ships to attack something
 # Lazy Attacker 3 - attack nearest docked ship
 # Lazy Attacker 4 - attack nearest ship
@@ -110,8 +73,7 @@ def defend_nearby_ships(ship, ships_under_attack, game_map, command_queue):
 #   - Cut off command queue after 1.5 seconds
 # Settler 5 - Only send enough settlers to each planet to fully colonize it
 # LA 7 - target any nearest ship, not just winning player's
-# Defender 1 - Make some attempt to defend docked ships.  Prefer defending docked ships over settling or attacking.
-bot_name = "Defender 1"
+bot_name = "LA 7"
 game = hlt.Game(bot_name)
 logging.info("Starting my {} bot!".format(bot_name))
 
@@ -140,9 +102,6 @@ while True:
     my_ships = game_map.get_me().all_ships()
     logging.info("{} ships, {}".format(len(my_ships), Counter([ship.docking_status.name for ship in my_ships])))
 
-    # Find ships that have lots health since last turn
-    ships_under_attack = find_attacked_ships(game_states, turn_number)
-    
     # Update settlers map by removing ships that were destroyed last turn
     remove_destroyed_ships_from_incoming_settlers(incoming_settlers, my_ships)
     logging.info("Took {} to update incoming settlers".format(time.time() - start_time))
@@ -158,21 +117,13 @@ while True:
                 len(command_queue),
                 len(game_map.get_me().all_ships())))
             break
-
         has_order = False
-
-        # TODO: Iterate through these options in a better way
-        has_order = has_order or stay_docked(ship)
-        
-        if not has_order:
-            try:
-                has_order = has_order or defend_nearby_ships(ship, ships_under_attack, game_map, command_queue)
-            except Exception as e:
-                logging.info(e)
-                raise(e)
-        if has_order:
+        # If the ship is docked
+        if ship.docking_status != ship.DockingStatus.UNDOCKED:
+            # Skip this ship
+            has_order = True
             continue
-        
+
         # For each planet in the game (only non-destroyed planets are included)
         # Try closer planets first
         for planet in sorted(game_map.all_planets(), key=ship.dist_to):

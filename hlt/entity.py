@@ -91,8 +91,8 @@ class Entity:
         pass
 
     def __str__(self):
-        return "Entity {} (id: {}) at position: (x = {}, y = {}), with radius = {}"\
-            .format(self.__class__.__name__, self.id, self.x, self.y, self.radius)
+        return "Entity {} (id: {}) at position: (x = {}, y = {}), with radius = {} and health = {}"\
+            .format(self.__class__.__name__, self.id, self.x, self.y, self.radius, self.health)
 
     def __repr__(self):
         return self.__str__()

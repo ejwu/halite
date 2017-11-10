@@ -1,5 +1,6 @@
 from . import collision, entity
 import copy
+import logging
 
 class Map:
     """
@@ -53,6 +54,16 @@ class Map:
         players.remove(self.get_me())
         return players
 
+    def all_enemy_ships(self):
+        """
+        :return: List of all ships owned by enemy players
+        :rype: list[Ship]
+        """
+        ships = []
+        for enemy in self.all_enemy_players():
+            ships.extend(enemy.all_ships())
+        return ships
+    
     def get_planet(self, planet_id):
         """
         :param int planet_id:
