@@ -165,11 +165,8 @@ while True:
         has_order = has_order or stay_docked(ship)
         
         if not has_order:
-            try:
-                has_order = has_order or defend_nearby_ships(ship, ships_under_attack, game_map, command_queue)
-            except Exception as e:
-                logging.info(e)
-                raise(e)
+            has_order = has_order or defend_nearby_ships(ship, ships_under_attack, game_map, command_queue)
+
         if has_order:
             continue
         
