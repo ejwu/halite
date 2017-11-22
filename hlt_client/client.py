@@ -38,7 +38,9 @@ AUTH_MODE = 'auth'
 GYM_MODE = 'gym'
 REPLAY_MODE = 'replay'
 BOT_MODE = 'bot'
-MODES = str({AUTH_MODE, GYM_MODE, REPLAY_MODE, BOT_MODE})
+SUPERGYM_MODE = 'supergym'
+
+MODES = str({AUTH_MODE, GYM_MODE, REPLAY_MODE, BOT_MODE, SUPERGYM_MODE})
 REPLAY_MODE_DATE = 'date'
 REPLAY_MODE_USER = 'user'
 
@@ -160,8 +162,18 @@ def _parse_arguments():
                             help="The map width the simulations will run in")
     bot_parser.add_argument('-H', '--height', dest='map_height', action='store', type=int, default=160,
                             help="The map height the simulations will run in")
-    bot_parser.add_argument('-i', '--iterations', dest='iterations', action='store', type=int,  default=100,
+    bot_parser.add_argument('-i', '--iterations', dest='iterations', action='store', type=int,  default=2,
                             help="Number of games to be run")
+
+    # .Modes.SuperGym
+    bot_parser = subparser.add_parser('supergym', help='Train your bots more!')
+    bot_parser.add_argument('-r', '--run-command', dest='run_commands', action='append', type=str, required=True,
+                            help="The command to run a specific bot. You may pass 2 or more of these arguments")
+    bot_parser.add_argument('-b', '--binary', dest='halite_binary', action='store', type=str, required=True,
+                            help="The halite executable/binary path, used to run the games")
+    bot_parser.add_argument('-i', '--iterations', dest='iterations', action='store', type=int,  default=100,
+                            help="Number of games to be run for each pair of bots")
+
     # .Modes.Replay
     replay_parser = subparser.add_parser('replay', help='Actions associated with replay files')
     # .Modes.Replay.Modes
@@ -224,6 +236,10 @@ def main():
             compare_bots.play_games(args.halite_binary,
                                     args.map_width, args.map_height,
                                     args.run_commands, args.iterations)
+        elif args.mode == SUPERGYM_MODE:
+            compare_bots.supergym(args.halite_binary,
+                                  args.run_commands,
+                                  args.iterations)
     except (IndexError, TypeError, ValueError, IOError, FileNotFoundError) as err:
         sys.stderr.write(str(err) + os.linesep)
         exit(-1)
