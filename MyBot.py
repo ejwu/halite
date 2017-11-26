@@ -9,6 +9,10 @@ from collections import Set
 
 _TIME_THRESHOLD = 1.5
 
+def pretty_log(things):
+    for thing in things:
+        logging.info(thing)
+
 # Find player with most ships
 def find_winning_player(game_map):
     max_ships = 0
@@ -54,15 +58,18 @@ def order_unused_ships(ships, game_map, command_queue, start_time):
     logging.info("Spent {} ordering unused ships".format(
         time.time() - order_unused_ships_start_time))
             
+def ship_ids(ships):
+    return [ship.id for ship in ships]
+
 def remove_destroyed_ships_from_incoming_settlers(planet_map, all_ships):
-    ship_ids = set([ship.id for ship in all_ships])
+    all_ship_ids = set(ship_ids(all_ships))
     for planet_id, incoming_settlers in planet_map.items():
-        planet_map[planet_id] = incoming_settlers & ship_ids
+        planet_map[planet_id] = incoming_settlers & all_ship_ids
 
 def remove_unordered_ships_from_incoming_settlers(planet_map, unordered_ships):
-    ship_ids = set([ship.id for ship in unordered_ships])
+    unordered_ship_ids = set(ship_ids(unordered_ships))
     for planet_id, incoming_settlers in planet_map.items():
-        planet_map[planet_id] = incoming_settlers - ship_ids
+        planet_map[planet_id] = incoming_settlers - unordered_ship_ids
 
 # Return a map of ship.id -> ship
 def find_attacked_ships(game_states, turn_number):
@@ -72,9 +79,10 @@ def find_attacked_ships(game_states, turn_number):
         if ship.id in last and last[ship.id].health != ship.health:
             attacked[ship.id] = ship
 
-    logging.info("Attacked: {}".format(attacked))
+    logging.info("Attacked")
+    pretty_log(attacked)
     return attacked
-    
+
 # Ships that are docked just stay docked
 def stay_docked(ship):
     if ship.docking_status != ship.DockingStatus.UNDOCKED:
@@ -99,7 +107,24 @@ def defend_nearby_ships(ship, ships_under_attack, game_map, command_queue):
             logging.info("Sending {} to defend {} by attacking {}".format(ship.id, nearest_ship.id, nearest_attacking_enemy.id))
             command_queue.append(navigate_command)
             return True
-                                    
+
+# Return true if player has fewer ships than previous turn
+def has_lost_ships(game_states):
+    if len(game_states) < 2:
+        return False
+    last_turn = game_states[len(game_states) - 2]
+    current_turn = game_states[len(game_states) - 1]
+    current = len(current_turn.get_me().all_ships())
+    last = len(last_turn.get_me().all_ships())
+    logging.info("Last")
+    pretty_log(last_turn.get_me().all_ships())
+    logging.info("current")
+    pretty_log(current_turn.get_me().all_ships())
+    if current < last:
+        for ship in last_turn.get_me().all_ships():
+            if ship.id not in ship_ids(current_turn.get_me().all_ships()):
+                logging.info("Lost {}".format(ship))
+    return current < last
         
 # Lazy Attacker 1 - Once all planets are claimed, send ships to attack something
 # Lazy Attacker 3 - attack nearest docked ship
@@ -133,6 +158,13 @@ while True:
     # Shallow copy seems good enough
     game_states.append(copy.copy(game_map))
 
+    if has_lost_ships(game_states):
+        logging.info("Lost ships at turn {}".format(turn_number))
+        if turn_number < 20:
+            logging.info("Probably crashed")
+        raise Exception('stop')
+    
+
     # Here we define the set of commands to be sent to the Halite engine at the end of the turn
     command_queue = []
 
@@ -142,7 +174,7 @@ while True:
 
     # Find ships that have lots health since last turn
     ships_under_attack = find_attacked_ships(game_states, turn_number)
-    
+
     # Update settlers map by removing ships that were destroyed last turn
     remove_destroyed_ships_from_incoming_settlers(incoming_settlers, my_ships)
     logging.info("Took {} to update incoming settlers".format(time.time() - start_time))
@@ -213,6 +245,9 @@ while True:
                     game_map,
                     max_corrections=45,
                     angular_step=2)
+                logging.info("Settle command")
+                logging.info(ship)
+                logging.info(navigate_command)
                 # If the move is possible, add it to the command_queue (if there are too many obstacles on the way
                 # or we are trapped (or we reached our destination!), navigate_command will return null;
                 # don't fret though, we can run the command again the next turn)
@@ -234,7 +269,7 @@ while True:
     order_unused_ships(ships_without_orders, game_map, command_queue, start_time)
 
     logging.info(command_queue)
-        
+    
     # Send our set of commands to the Halite engine for this turn
     game.send_command_queue(command_queue)
     turn_number += 1
