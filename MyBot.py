@@ -9,6 +9,10 @@ from collections import Set
 
 _TIME_THRESHOLD = 1.5
 
+# Lose 1 ship early
+# ./halite -d "240 160" "python3 MyBot.py" "python3 MyBotOld.py" -s 2393949609
+
+
 def pretty_log(things):
     for thing in things:
         logging.info(thing)
@@ -112,18 +116,20 @@ def defend_nearby_ships(ship, ships_under_attack, game_map, command_queue):
 def has_lost_ships(game_states):
     if len(game_states) < 2:
         return False
-    last_turn = game_states[len(game_states) - 2]
-    current_turn = game_states[len(game_states) - 1]
-    current = len(current_turn.get_me().all_ships())
-    last = len(last_turn.get_me().all_ships())
+    last_turn_ships = game_states[len(game_states) - 2].get_me().all_ships()
+    current_turn_ships = game_states[len(game_states) - 1].get_me().all_ships()
+    current = len(current_turn_ships)
+    last = len(last_turn_ships)
     logging.info("Last")
-    pretty_log(last_turn.get_me().all_ships())
+    pretty_log(last_turn_ships)
     logging.info("current")
-    pretty_log(current_turn.get_me().all_ships())
+    pretty_log(current_turn_ships)
     if current < last:
-        for ship in last_turn.get_me().all_ships():
-            if ship.id not in ship_ids(current_turn.get_me().all_ships()):
+        for ship in last_turn_ships:
+            if ship.id not in ship_ids(current_turn_ships):
                 logging.info("Lost {}".format(ship))
+                if ship.health > 128:
+                    logging.info("Probably crashed into something")
     return current < last
         
 # Lazy Attacker 1 - Once all planets are claimed, send ships to attack something
@@ -136,7 +142,8 @@ def has_lost_ships(game_states):
 # Settler 5 - Only send enough settlers to each planet to fully colonize it
 # LA 7 - target any nearest ship, not just winning player's
 # Defender 1 - Make some attempt to defend docked ships.  Prefer defending docked ships over settling or attacking.
-bot_name = "Defender 1"
+# Optimist Navigator 1 - when unable to find a navigable path in time, just send off the ship anyway at lower speed
+bot_name = "Optimist Navigator 1"
 game = hlt.Game(bot_name)
 logging.info("Starting my {} bot!".format(bot_name))
 
@@ -158,12 +165,14 @@ while True:
     # Shallow copy seems good enough
     game_states.append(copy.copy(game_map))
 
-    if has_lost_ships(game_states):
-        logging.info("Lost ships at turn {}".format(turn_number))
-        if turn_number < 20:
-            logging.info("Probably crashed")
-        raise Exception('stop')
-    
+    try:
+        if has_lost_ships(game_states):
+            logging.info("Lost ships at turn {}".format(turn_number))
+            if turn_number < 20:
+                logging.info("Probably crashed")
+    except Exception as e:
+        logging.info(e)
+        raise(e)
 
     # Here we define the set of commands to be sent to the Halite engine at the end of the turn
     command_queue = []
@@ -235,8 +244,6 @@ while True:
                 logging.info("Ship {} settling planet {}".format(ship.id, planet.id))
                 has_order = True
             else:
-                incoming_settlers[planet.id].add(ship.id)
-                logging.info("Ship {} traveling to settle planet {}".format(ship.id, planet.id))
                 # If we can't dock, we move towards the closest empty point near this planet (by using closest_point_to)
                 # with constant speed. Don't worry about pathfinding for now, as the command will do it for you.
                 # We run this navigate command each turn until we arrive to get the latest move.
@@ -244,18 +251,20 @@ while True:
                     ship.closest_point_to(planet),
                     game_map,
                     max_corrections=45,
-                    angular_step=2)
-                logging.info("Settle command")
-                logging.info(ship)
-                logging.info(navigate_command)
+                    angular_step=2,
+                    optimist=True)
                 # If the move is possible, add it to the command_queue (if there are too many obstacles on the way
                 # or we are trapped (or we reached our destination!), navigate_command will return null;
                 # don't fret though, we can run the command again the next turn)
                 if navigate_command:
+                    incoming_settlers[planet.id].add(ship.id)
+                    logging.info("Ship {} traveling to settle planet {}".format(ship.id, planet.id))
+                    logging.info(ship)
+                    logging.info(navigate_command)
                     command_queue.append(navigate_command)
                     has_order = True
                 else:
-                    logging.info("navigate failed")
+                    logging.info("Ship {} failed to navigate to settle planet {}".format(ship.id, planet.id))
             break
         if not has_order:
             ships_without_orders.add(ship)
@@ -268,7 +277,8 @@ while True:
 
     order_unused_ships(ships_without_orders, game_map, command_queue, start_time)
 
-    logging.info(command_queue)
+    logging.info("Command queue:")
+    pretty_log(command_queue)
     
     # Send our set of commands to the Halite engine for this turn
     game.send_command_queue(command_queue)
